@@ -5,11 +5,16 @@ import (
 	"fmt"
 	"github.com/bwmarrin/discordgo"
 	"io/ioutil"
-	"time"
+	"strings"
+)
+
+var (
+	prefix string
 )
 
 type Config struct {
-	Token string `json:"token"`
+	Token  string `json:"token"`
+	Prefix string `json: "prefix"`
 }
 
 func main() {
@@ -26,7 +31,8 @@ func main() {
 
 	// Create a new Discord session using the provided login information.
 	// Use discordgo.New(Token) to just use a token for login.
-	dg, err := discordgo.New(conf.Token)
+	dg, err := discordgo.New("Bot " + conf.Token)
+	prefix = conf.Prefix
 	if err != nil {
 		fmt.Println("error creating Discord session,", err)
 		return
@@ -52,6 +58,41 @@ func main() {
 // message is created on any channel that the autenticated bot has access to.
 func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 
-	// Print message to stdout.
-	fmt.Printf("%20s %20s %20s > %s\n", m.ChannelID, time.Now().Format(time.Stamp), m.Author.Username, m.Content)
+	// Ignore all messages created by the bot itself
+	if m.Author.ID == s.State.User.ID {
+		return
+	}
+	// If the message is "ping" reply with "Pong!"
+	if strings.HasPrefix(m.Content, prefix) {
+		// Setting values for the commands
+		args := strings.Split(m.Content[len(prefix):len(m.Content)], " ")
+		invoked := args[0]
+		args = args[1:len(args)]
+
+		if invoked == "ping" {
+			s.ChannelMessageSend(m.ChannelID, "Pong!")
+		}
+
+		if invoked == "pong" {
+			s.ChannelMessageSend(m.ChannelID, "Ping!")
+		}
+
+		if invoked == "changeName" && m.Author.ID == "139386544275324928" {
+			s.UserUpdate("", "", strings.Join(args, " "), s.State.User.Avatar, "")
+			s.ChannelMessageSend(m.ChannelID, "Sucessfully changed name to: "+strings.Join(args, " "))
+		}
+	}
 }
+
+// func messageCreate2(s *discordgo.Session, m *discordgo.MessageCreate) {
+
+// 	_internal_channel := m.ChannelID
+// 	_internal_author := m.Author
+
+// 	if strings.HasPrefix(m.Content, dg.prefix) {
+// 		args := strings.Split(m.Content[len(dg.prefix):len(m.Content)], " ")
+// 		invoked := args[0]
+// 		args = args[1:len(args)]
+
+// 	}
+// }
