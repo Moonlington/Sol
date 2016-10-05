@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 	"unicode"
 )
 
@@ -22,6 +23,30 @@ type Config struct {
 	Prefix      string `json: "prefix"`
 	Hitmantoken string `json: "hitmantoken"`
 	Gttoken     string `json: "gttoken"`
+}
+
+type Response []struct {
+	ID        string    `json:"id"`
+	Text      []string  `json:"text"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type Carddeck struct {
+	Name              string    `json:"name"`
+	Code              string    `json:"code"`
+	Description       string    `json:"description"`
+	Unlisted          bool      `json:"unlisted"`
+	CreatedAt         time.Time `json:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
+	ExternalCopyright bool      `json:"external_copyright"`
+	Category          string    `json:"category"`
+	CallCount         string    `json:"call_count"`
+	ResponseCount     string    `json:"response_count"`
+	Author            struct {
+		ID       string `json:"id"`
+		Username string `json:"username"`
+	} `json:"author"`
+	Rating string `json:"rating"`
 }
 
 func main() {
@@ -74,36 +99,31 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		args := strings.Split(m.Content[len(prefix):len(m.Content)], " ")
 		invoked := args[0]
 		args = args[1:]
+		channel, _ := s.State.Channel(m.ChannelID)
 
 		if invoked == "ping" {
 			s.ChannelMessageSend(m.ChannelID, "Pong!")
-		}
-
-		if invoked == "pong" {
+		} else if invoked == "pong" {
 			s.ChannelMessageSend(m.ChannelID, "Ping!")
-		}
-
-		if invoked == "changeName" && m.Author.ID == "139386544275324928" {
+		} else if invoked == "changeName" && m.Author.ID == "139386544275324928" {
 			s.UserUpdate("", "", strings.Join(args, " "), s.State.User.Avatar, "")
 			s.ChannelMessageSend(m.ChannelID, "Sucessfully changed name to: "+strings.Join(args, " "))
-		}
-
-		if invoked == "cards" && m.ChannelID == "191760330517381121" {
+		} else if invoked == "cards" && channel.GuildID == "184394993375379457" {
 			cors := strings.Join(args[1:], " ")
-			if args[0] == "call" {
+			if args[0] == "black" {
 				url := "https://api.cardcastgame.com/v1/decks/23Z9M/calls"
 				if strings.Count(cors, `_`) == 0 {
-					s.ChannelMessageSend(m.ChannelID, "**Calls** must contain a blank. `_`")
+					s.ChannelMessageSend(m.ChannelID, "**Black cards** must contain a blank. `_`")
 				} else {
 					r, _ := regexp.Compile("_+")
 					r2, _ := regexp.Compile("[.?!]$")
 					cors = r.ReplaceAllString(cors, "_")
 					if strings.Count(cors, "_") > 3 {
-						s.ChannelMessageSend(m.ChannelID, "**Calls** can only have a maximum of **3** blanks.")
+						s.ChannelMessageSend(m.ChannelID, "**Black cards** can only have a maximum of **3** blanks.")
 					} else if !unicode.IsUpper(rune(cors[0])) && (cors[0] == '_' || !unicode.IsDigit(rune(cors[0]))) {
-						s.ChannelMessageSend(m.ChannelID, "Are you sure the **Call** begins with proper capitalization?")
+						s.ChannelMessageSend(m.ChannelID, "Are you sure the **Black card** begins with proper capitalization?")
 					} else if !r2.MatchString(cors) {
-						s.ChannelMessageSend(m.ChannelID, "Are you sure the **Call** ends with proper punctiation?")
+						s.ChannelMessageSend(m.ChannelID, "Are you sure the **Black card** ends with proper punctiation?")
 					} else {
 						corsu := strings.Replace(cors, `_`, `",	"`, -1)
 						payload := strings.NewReader(`{"calls":[{"text":["` + corsu + `"],"string":"` + cors + `","validation":{"state":"success","message":"Looks good!"},"eventChain":null}]}`)
@@ -116,7 +136,7 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 
 						res, _ := http.DefaultClient.Do(req)
 						if res.StatusCode == 201 {
-							s.ChannelMessageSend(m.ChannelID, "Successfully made `"+cors+"` a **Call** for the HITMAN deck!")
+							s.ChannelMessageSend(m.ChannelID, "Successfully made `"+cors+"` a **Black card** for the HITMAN deck!")
 						} else {
 							defer res.Body.Close()
 							body, _ := ioutil.ReadAll(res.Body)
@@ -124,10 +144,12 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 						}
 					}
 				}
-			} else if args[0] == "resp" {
+			} else if args[0] == "white" {
 				r2, _ := regexp.Compile("[.]$")
 				if r2.MatchString(cors) {
-					s.ChannelMessageSend(m.ChannelID, "**Responses** shouldn't end with punctuation.")
+					s.ChannelMessageSend(m.ChannelID, "**White cards** shouldn't end with punctuation.")
+				} else if strings.Contains(cors, "_") {
+					s.ChannelMessageSend(m.ChannelID, "Are you *sure* you meant a **White card**? (If 100% sure, just tell Floretta#7311 to add it)")
 				} else {
 					url := "https://api.cardcastgame.com/v1/decks/23Z9M/responses"
 					payload := strings.NewReader(`{"responses":[{"text":["` + cors + `"],"string":"` + cors + `","validation":{"state":"success","message":"Looks good!"},"eventChain":null}]}`)
@@ -140,7 +162,7 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 
 					res, _ := http.DefaultClient.Do(req)
 					if res.StatusCode == 201 {
-						s.ChannelMessageSend(m.ChannelID, "Successfully made `"+cors+"` a **Response** for the HITMAN deck!")
+						s.ChannelMessageSend(m.ChannelID, "Successfully made `"+cors+"` a **White card** for the HITMAN deck!")
 					} else {
 						defer res.Body.Close()
 						body, _ := ioutil.ReadAll(res.Body)
@@ -148,9 +170,73 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 					}
 				}
 			} else if args[0] == "view" {
-				s.ChannelMessageSend(m.ChannelID, "This is the **HITMAN** deck in its current state!\n*<https://www.cardcastgame.com/browse/deck/23Z9M>*")
+				resp, _ := http.Get("https://api.cardcastgame.com/v1/decks/23Z9M/")
+				defer resp.Body.Close()
+				body, _ := ioutil.ReadAll(resp.Body)
+				var r Carddeck
+				err := json.Unmarshal(body, &r)
+				if err != nil {
+					fmt.Print("Error:", err)
+				}
+				i1, _ := strconv.Atoi(r.CallCount)
+				i2, _ := strconv.Atoi(r.ResponseCount)
+				total := strconv.Itoa(i1 + i2)
+				s.ChannelMessageSend(m.ChannelID, "This is **"+r.Name+"** in its current state!\nThis deck is made by **"+r.Author.Username+"** and contains **"+total+"** cards! (B: "+r.CallCount+"/W: "+r.ResponseCount+")\n*<https://www.cardcastgame.com/browse/deck/"+r.Code+">*")
 			} else if args[0] == "use" {
 				s.ChannelMessageSend(m.ChannelID, "__How to use the **HITMAN** deck in CAH__\nMake a game on *<http://pyx-2.pretendyoure.xyz/zy/game.jsp>*\nIn the chat, use the command /addcardcast **23Z9M**\nProfit!")
+			} else if args[0] == "search" {
+				str := strings.Join(args[1:], " ")
+
+				s.ChannelTyping(m.ChannelID)
+
+				call, _ := http.Get("https://api.cardcastgame.com/v1/decks/23Z9M/calls")
+				resp, _ := http.Get("https://api.cardcastgame.com/v1/decks/23Z9M/responses")
+
+				defer resp.Body.Close()
+				defer call.Body.Close()
+
+				body1, _ := ioutil.ReadAll(call.Body)
+				body2, _ := ioutil.ReadAll(resp.Body)
+
+				var callresp Response
+				var respresp Response
+
+				err := json.Unmarshal(body1, &callresp)
+				if err != nil {
+					fmt.Print("Error:", err)
+				}
+
+				err = json.Unmarshal(body2, &respresp)
+				if err != nil {
+					fmt.Print("Error:", err)
+				}
+
+				send := "__**Black cards containing \"" + str + "\"**__\n```"
+				for _, x := range callresp {
+					if strings.Contains(strings.ToLower(strings.Join(x.Text, "_")), strings.ToLower(str)) {
+						send += strings.Join(x.Text, "_") + "\n"
+					}
+				}
+				send += "```__**White cards containing \"" + str + "\"**__\n```"
+				for _, x := range respresp {
+					if strings.Contains(strings.ToLower(strings.Trim(x.Text[0], " ")), strings.ToLower(str)) {
+						send += strings.Trim(x.Text[0], " ") + "\n"
+					}
+				}
+				send += "```"
+				s.ChannelMessageSend(m.ChannelID, send)
+			} else if args[0] == "help" {
+				send := `__Help for the command: **cards**__
+$cards white <content> - Adds a white card to the deck
+$cards black <content> - Adds a black card to the deck
+$cards view - See the current state of the deck
+$cards use - Tells you how to use the deck
+$cards search <string> - Searches in the cards for your string
+
+__Example of adding a card__
+$cards white Billy's genitals
+$cards black Where did _ go?`
+				s.ChannelMessageSend(m.ChannelID, send)
 			}
 		}
 	}
